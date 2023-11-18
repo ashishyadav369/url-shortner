@@ -52,36 +52,42 @@ app.get("/", (req, res) => {
 
 // Route to handle short URL creation
 app.post("/shorturl", async (req, res) => {
-  const orignalUrl = req.body.url;
+  const originalUrl = req.body.url;
   try {
-    const hostname = urlParser.parse(orignalUrl).hostname;
+    const hostname = urlParser.parse(originalUrl).hostname;
 
     // Use DNS lookup to validate the URL
     dns.lookup(hostname, async (err, address) => {
+      let uniqueRandomShortUrl;
       if (!address) {
         res.json({ error: "INVALID_URL" });
       } else {
-        // Generate a unique random short URL
-        const uniqueRandomShortUrl = await generateUniqueRandomShortUrl();
-        const shortUrl = {
-          orignalUrl,
-          shortUrl: uniqueRandomShortUrl,
-        };
+        // Check if the original URL already exists in the database
+        const urlObj = await urls.findOne({ original_url: originalUrl });
 
-        // Insert the short URL into the database
-        await urls.insertOne(shortUrl);
+        if (!urlObj) {
+          // Generate a unique random short URL
+          uniqueRandomShortUrl = await generateUniqueRandomShortUrl();
+          const shortUrl = {
+            original_url: originalUrl,
+            short_url: uniqueRandomShortUrl,
+          };
+
+          // Insert the short URL into the database
+          await urls.insertOne(shortUrl);
+        }
 
         // Respond with the original and short URL
         res.json({
-          original_url: orignalUrl,
-          short_url: `${req.protocol}://${req.get(
-            "host"
-          )}/${uniqueRandomShortUrl}`,
+          original_url: originalUrl,
+          short_url: `${req.protocol}://${req.get("host")}/${
+            uniqueRandomShortUrl || urlObj.short_url
+          }`,
         });
       }
     });
-  } catch (err) {
-    console.error("Error processing shorturl request:", err);
+  } catch (error) {
+    console.error("Error processing shorturl request:", error);
     res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 });
@@ -92,11 +98,11 @@ app.get("/:short_url", async (req, res) => {
 
   try {
     // Find the original URL associated with the short URL in the database
-    const urlObj = await urls.findOne({ shortUrl: shortUrlParams });
+    const urlObj = await urls.findOne({ short_url: shortUrlParams });
 
     if (urlObj) {
       // Redirect to the original URL
-      res.redirect(urlObj.orignalUrl);
+      res.redirect(urlObj.original_url);
     } else {
       res.status(404).json({ error: "URL not found" });
     }
