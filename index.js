@@ -35,7 +35,7 @@ async function generateUniqueRandomShortUrl(length = 6) {
     // Check if the generated short URL is unique
     try {
       const existingUrl = await urls.findOne({
-        shortUrl: randomShortUrl,
+        short_url: randomShortUrl,
       });
       isUnique = !existingUrl;
     } catch (error) {
@@ -45,9 +45,22 @@ async function generateUniqueRandomShortUrl(length = 6) {
   return randomShortUrl;
 }
 
+// Function to delete expired short URLs
+async function deleteExpiredUrls() {
+  try {
+    const currentDate = new Date();
+    const expiredUrls = await urls.deleteMany({
+      expiration_at: { $lt: currentDate },
+    });
+    console.log(`Deleted ${expiredUrls.deletedCount} expired Urls`);
+  } catch (error) {
+    console.error("Error deleting expired urls", error);
+  }
+}
+
 // Route to handle the root endpoint
-app.get("/", (req, res) => {
-  res.json({ greet: "helllo" });
+app.get("/", async (req, res) => {
+  res.json({ greet: "hello" });
 });
 
 // Route to handle short URL creation
@@ -68,9 +81,16 @@ app.post("/shorturl", async (req, res) => {
         if (!urlObj) {
           // Generate a unique random short URL
           uniqueRandomShortUrl = await generateUniqueRandomShortUrl();
+
+          let createdAt = new Date();
+          let expirationDate = new Date(createdAt);
+          expirationDate.setMonth(expirationDate.getMonth() + 3);
+
           const shortUrl = {
             original_url: originalUrl,
             short_url: uniqueRandomShortUrl,
+            created_at: createdAt,
+            expiration_at: expirationDate,
           };
 
           // Insert the short URL into the database
@@ -111,6 +131,10 @@ app.get("/:short_url", async (req, res) => {
     res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 });
+
+setInterval(async () => {
+  await deleteExpiredUrls();
+}, 24 * 60 * 60 * 1000); // 24hr in ms
 
 app.listen(port, function () {
   console.log(`Listening on port ${port}`);
