@@ -1,4 +1,6 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
+
 const express = require("express");
 const cors = require("cors");
 const { MongoClient } = require("mongodb");
@@ -6,7 +8,7 @@ const dns = require("dns");
 const urlParser = require("url");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 4000;
 
 const client = new MongoClient(process.env.DB_URL);
 const dbName = process.env.DB_NAME;
